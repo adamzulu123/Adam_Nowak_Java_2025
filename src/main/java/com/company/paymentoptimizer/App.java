@@ -1,5 +1,6 @@
 package com.company.paymentoptimizer;
 
+import com.company.paymentoptimizer.io.InputReader;
 import com.company.paymentoptimizer.model.Order;
 import com.company.paymentoptimizer.model.PaymentMethod;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -22,20 +23,12 @@ public class App {
         String paymentMethodsPath = args[1];
 
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            List<Order> orders = objectMapper.readValue(new File(ordersPath), new TypeReference<List<Order>>() {});
-            List<PaymentMethod> paymentMethods = objectMapper.readValue(new File(paymentMethodsPath),
-                    new TypeReference<ArrayList<PaymentMethod>>() {});
+            InputReader inputReader = new InputReader();
+            List<Order> orders = inputReader.readOrders(ordersPath);
+            List<PaymentMethod> paymentMethods = inputReader.readPaymentMethods(paymentMethodsPath);
+            System.out.println(orders);
+            System.out.println(paymentMethods);
 
-            System.out.println("Orders:");
-            for (Order order : orders) {
-                System.out.println(order);
-            }
-
-            System.out.println("\n PaymentMethods:");
-            for (PaymentMethod method : paymentMethods) {
-                System.out.println(method);
-            }
 
         } catch (IOException e){
             System.err.println(e.getMessage());
