@@ -42,6 +42,11 @@ public class PaymentMethod {
         this.used = this.used.add(amount);
     }
 
+    //sprawdza czy możemy w całości obłacic zamówienie
+    public boolean canFullyCover(BigDecimal amount){
+        return getAvailable().compareTo(amount) >= 0;
+    }
+
 
 
 
