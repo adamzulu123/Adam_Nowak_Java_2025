@@ -182,7 +182,9 @@ public class Optimizer {
                 .map(a -> a.getOrder().getId())
                 .collect(Collectors.toSet());
 
-        List<Order> unallocatedOrders = new ArrayList<>(); //jak zachłanny zawiedzie
+        //List<Order> unallocatedOrders = new ArrayList<>(); //jak zachłanny zawiedzie --> nie dokończone ze wzgledu na czas
+
+        orders.sort(Comparator.comparing(Order::getValue).reversed());
 
         for (Order order : orders) {
             if (!allocatedOrderIds.contains(order.getId())) {
@@ -263,30 +265,21 @@ public class Optimizer {
                     allocations.add(bestOption.toAllocation());
                     allocatedOrderIds.add(order.getId());
                 }else{
-
+                    System.out.println(order.getId());
                     //unallocatedOrders.add(order); //todo::
                 }
 
             }
         }
-
-//        for (Order unOrder : unallocatedOrders) {
-//            boolean success = attemptReallocateFor(unOrder);
-//            if (success) System.out.println("Successfully reallocated order " + unOrder.getId());
-//            else System.out.println("Failed to reallocate order " + unOrder.getId());
-//        }
+        //todo: unallocatedOrders --> relokacja i poszukiwania innych możliwości lokalnie --> dużo wiecej kodu i czasu potrzebne
 
     }
 
     //todo:: do zrobienia ale czasu zabrakło działa za to algorytm zachłanny który powienien w znacznej wiekszosci
     //todo:: sytuacji znaleźć rozwiazanie -- to co niżej to własnie nie dokończone szykanie i relokowanie zapłaty
+    //albo w ogóle można by wielowątkowo policzyc te 10 000 000 opcji i potem z nich wybierać
+    //ale chyba ten co narazie greedy powienien rozwiązac wiekszośc problemów
 
-    /**
-     * Próba naprawy lokalnej dla zamówienia, którego nie udało się opłacić zachłannie.
-     * Sprawdza czy można zwolnić zasoby z już przydzielonych zamówień, aby opłacić to zamówienie.
-     * @param failedOrder zamówienie, dla którego szukamy naprawy
-     * @return true jeśli naprawa się powiodła, false w przeciwnym wypadku
-     */
     private boolean attemptReallocateFor(Order failedOrder) {
         List<PaymentOption> possibleOptions = generatePotentialPaymentMethods(failedOrder);
 
