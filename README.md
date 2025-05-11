@@ -2,7 +2,7 @@
 
 ### Author: Adam Nowak
 
-This application optimizes the way orders are paid using available payment methods and discounts.
+This application optimizes the payment process for orders using available payment methods and discounts. I implemented a greedy algorithm, which, while potentially ineffective in more complex scenarios, should work efficiently for simpler cases with many orders and payment methods. I also attempted to develop a more effective solution that would be optimal and efficient in all cases, but due to a tight deadline, I was unable to complete it in time.
 
 ---
 
