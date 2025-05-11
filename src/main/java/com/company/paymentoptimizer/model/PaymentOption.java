@@ -25,23 +25,19 @@ public class PaymentOption implements Comparable<PaymentOption> {
      * Konwetujemy potecjalna metode płatnoci na finalną alokację
      */
     public Allocation toAllocation() {
-        if (secondaryMethod.isPresent()) {
-            return new Allocation(
-                    order,
-                    primaryMethod,
-                    primaryAmount,
-                    totalDiscount,
-                    Optional.of(new Allocation.SecondaryPayment(secondaryMethod.get(), secondaryAmount))
-            );
-        } else {
-            return new Allocation(
-                    order,
-                    primaryMethod,
-                    primaryAmount,
-                    totalDiscount,
-                    Optional.empty()
-            );
-        }
+        return secondaryMethod.map(paymentMethod -> new Allocation(
+                order,
+                primaryMethod,
+                primaryAmount,
+                totalDiscount,
+                Optional.of(new Allocation.SecondaryPayment(paymentMethod, secondaryAmount))
+        )).orElseGet(() -> new Allocation(
+                order,
+                primaryMethod,
+                primaryAmount,
+                totalDiscount,
+                Optional.empty()
+        ));
     }
 
     @Override

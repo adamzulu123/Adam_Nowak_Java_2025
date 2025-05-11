@@ -33,7 +33,7 @@ public class App {
             Optimizer optimizer = new Optimizer(orders, paymentMethods);
             List<Allocation> allocations = optimizer.optimize();
             for (Allocation allocation : allocations) {
-                System.out.println(allocation.getOrder() + "Opłacone przez: " + allocation.getPrimaryMethod());
+                System.out.println(allocation);
             }
 
 

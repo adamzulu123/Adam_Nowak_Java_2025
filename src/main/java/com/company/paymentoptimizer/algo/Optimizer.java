@@ -48,7 +48,7 @@ public class Optimizer {
     private final List<PaymentMethod> paymentMethods;
     private final PaymentMethod pointsMethod;
     private final List<PaymentMethod> cardMethods;
-    //private final List<Allocation> allocations = new ArrayList<>();
+    private final List<Allocation> allocations = new ArrayList<>();
 
     //teraz mamy ładnie wyizolowane metody które się nie zmienia tak samo jak orders dlatego final
     public Optimizer(List<Order> orders, List<PaymentMethod> paymentMethods) {
@@ -69,8 +69,8 @@ public class Optimizer {
      * @return allocations
      */
     public List<Allocation> optimize() {
-        List<Allocation> allocations = allocateFullCardOptions();
-
+        allocateFullCardOptions();
+        allocateRemainingOrders();
         return allocations;
     }
 
@@ -79,8 +79,8 @@ public class Optimizer {
      * Zachłanne alokowanie orders które można opłacic kartą z promotions
      * @return
      */
-    private List<Allocation> allocateFullCardOptions(){
-        List<Allocation> allocations = new ArrayList<>();
+    private void allocateFullCardOptions(){
+        //List<Allocation> allocations = new ArrayList<>();
         Set<String> allocatedOrders = new HashSet<>();
 
         List<PaymentOption> potentialCardOptions = new ArrayList<>();
@@ -123,7 +123,7 @@ public class Optimizer {
 
         }
 
-        return allocations;
+        //return allocations;
     }
 
     /**
@@ -133,6 +133,105 @@ public class Optimizer {
         return amount.multiply(BigDecimal.valueOf(discountPercentage))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
+
+
+    /**
+     * Alokowanie pozostałych nie opłaconych zamówień.
+     * Idea jest taka, że najpierw próbujemy opłacić zamówienie w całości punktami,
+     * potem punkty + karta, a na koniec ratujemy się w całości kartą bez rabatów
+     */
+    public void allocateRemainingOrders(){
+        Set<String> allocatedOrderIds = allocations.stream()
+                .map(a -> a.getOrder().getId())
+                .collect(Collectors.toSet());
+
+        for (Order order : orders) {
+            if (!allocatedOrderIds.contains(order.getId())) {
+                List<PaymentOption> potentialOrderOptions = new ArrayList<>();
+
+                //1. PUNKTY 100%
+                if (pointsMethod.canFullyCover(order.getValue())) {
+                    BigDecimal discount = calculateDiscount(order.getValue(), pointsMethod.getDiscount());
+                    BigDecimal amountAfterDiscount = order.getValue().subtract(discount);
+
+                    potentialOrderOptions.add(new PaymentOption(
+                            order,
+                            pointsMethod,
+                            amountAfterDiscount,
+                            Optional.empty(),
+                            BigDecimal.ZERO,
+                            discount
+                    ));
+                }
+
+                //2. Punkty (10% wartości zamówienia) + Karta ==> 10% rabatu
+                if (pointsMethod.getAvailable().compareTo(BigDecimal.ZERO) > 0) {
+                    //musimy sprawdzić czy jesteśmy w stanie pokryć 10% zamówienia
+                    BigDecimal minAmountForPoints = calculateDiscount(order.getValue(), 10);
+                    BigDecimal pointsToUse = pointsMethod.getAvailable();
+
+                    if (pointsToUse.compareTo(order.getValue()) > 0) {
+                        pointsToUse = order.getValue();
+                    }
+
+                    if (pointsMethod.getAvailable().compareTo(minAmountForPoints) >= 0) {
+                        for (PaymentMethod card : cardMethods) {
+                            BigDecimal totalDiscount = calculateDiscount(order.getValue(), 10);
+                            BigDecimal discountedTotal = order.getValue().subtract(totalDiscount);
+                            BigDecimal remainingValue = discountedTotal.subtract(pointsToUse);
+
+                            //jeśli kartą jesteśmy w stanie pokryć pozostałą część zamówienia
+                            if (remainingValue.compareTo(BigDecimal.ZERO) > 0 && card.canFullyCover(remainingValue)) {
+                                potentialOrderOptions.add(new PaymentOption(
+                                        order,
+                                        pointsMethod,
+                                        pointsToUse,
+                                        Optional.of(card),
+                                        remainingValue,
+                                        totalDiscount
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                //3. Sama karta (ratunek jak juz pkt ani zniżek nie mamy)
+                for (PaymentMethod card : cardMethods) {
+                    if (card.canFullyCover(order.getValue())) {
+                        potentialOrderOptions.add(new PaymentOption(
+                                order,
+                                card,
+                                order.getValue(),
+                                Optional.empty(),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO
+                        ));
+                    }
+                }
+
+                //wybieramy najlepszą opcje dla zamówienia
+                if (!potentialOrderOptions.isEmpty()) {
+                    Collections.sort(potentialOrderOptions);
+                    PaymentOption bestOption = potentialOrderOptions.getFirst();
+
+                    //aktualizujemy limity
+                    bestOption.getPrimaryMethod().addUsed(bestOption.getPrimaryAmount());
+                    if (bestOption.getSecondaryMethod().isPresent()) {
+                        bestOption.getSecondaryMethod().get().addUsed(bestOption.getSecondaryAmount());
+                    }
+
+                    //dodajemy do allocations
+                    allocations.add(bestOption.toAllocation());
+                    allocatedOrderIds.add(order.getId());
+                }else{
+                    //todo: trzeba jakoś obsłużyć sytuację jak nie udało się zachłannie opłacić zamówienia
+                }
+
+            }
+        }
+    }
+
+
 
 
 
