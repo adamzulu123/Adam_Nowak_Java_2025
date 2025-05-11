@@ -45,7 +45,7 @@ The application requires two input JSON files:
 
 To run the application manually from the command line:
 
-java -jar target/Adam_Nowak_Java_2025-1.0-SNAPSHOT-jar-with-dependencies.jar <path-to-orders.json> <path-to-paymentmethods.json>
+#### java -jar target/Adam_Nowak_Java_2025-1.0-SNAPSHOT-jar-with-dependencies.jar <orders.json> <paymentmethods.json>
 
 
 The result will be printed to the console.
@@ -76,7 +76,7 @@ Test coverage includes core optimization logic (`Optimizer`) and input parsing l
 ## Requirements
 
 - Java 17 or Java 21
-- Maven 3.6 or newer
+- Maven 3.6 or newer (optional if u want to recompile)
 
 ---
 
