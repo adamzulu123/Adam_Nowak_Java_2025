@@ -48,7 +48,7 @@ public class Optimizer {
     private final List<PaymentMethod> paymentMethods;
     private final PaymentMethod pointsMethod;
     private final List<PaymentMethod> cardMethods;
-    private final List<Allocation> allocations = new ArrayList<>();
+    private List<Allocation> allocations = new ArrayList<>();
 
     //teraz mamy ładnie wyizolowane metody które się nie zmienia tak samo jak orders dlatego final
     public Optimizer(List<Order> orders, List<PaymentMethod> paymentMethods) {
@@ -72,6 +72,43 @@ public class Optimizer {
         allocateFullCardOptions();
         allocateRemainingOrders();
         return allocations;
+    }
+
+    /**
+     * Generowanie raportu
+     */
+    public String generateReport(List<Allocation> allocations) {
+        StringBuilder report = new StringBuilder();
+        Map<String, BigDecimal> paymentUsage = new HashMap<>();
+
+        for (Allocation allocation : allocations) {
+            report.append(allocation).append("\n\n");
+
+            paymentUsage.merge(
+                    allocation.getPrimaryMethod().getId(),
+                    allocation.getAmountFromPrimaryMethod(),
+                    BigDecimal::add
+            );
+
+            allocation.getSecondaryPayment().ifPresent(secondary ->
+                    paymentUsage.merge(
+                            secondary.paymentMethod().getId(),
+                            secondary.amount(),
+                            BigDecimal::add
+                    )
+            );
+        }
+
+        report.append("=== Result ===\n");
+        paymentUsage.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    BigDecimal total = entry.getValue().setScale(2, RoundingMode.HALF_UP);
+                    report.append(entry.getKey()).append(": ").append(total).append("\n");
+                });
+
+        return report.toString();
+
     }
 
 
@@ -145,6 +182,8 @@ public class Optimizer {
                 .map(a -> a.getOrder().getId())
                 .collect(Collectors.toSet());
 
+        List<Order> unallocatedOrders = new ArrayList<>(); //jak zachłanny zawiedzie
+
         for (Order order : orders) {
             if (!allocatedOrderIds.contains(order.getId())) {
                 List<PaymentOption> potentialOrderOptions = new ArrayList<>();
@@ -164,7 +203,7 @@ public class Optimizer {
                     ));
                 }
 
-                //2. Punkty (10% wartości zamówienia) + Karta ==> 10% rabatu
+                //2. Punkty (+10% wartości zamówienia) + Karta ==> 10% rabatu
                 if (pointsMethod.getAvailable().compareTo(BigDecimal.ZERO) > 0) {
                     //musimy sprawdzić czy jesteśmy w stanie pokryć 10% zamówienia
                     BigDecimal minAmountForPoints = calculateDiscount(order.getValue(), 10);
@@ -224,26 +263,128 @@ public class Optimizer {
                     allocations.add(bestOption.toAllocation());
                     allocatedOrderIds.add(order.getId());
                 }else{
-                    //todo: trzeba jakoś obsłużyć sytuację jak nie udało się zachłannie opłacić zamówienia
+
+                    //unallocatedOrders.add(order); //todo::
                 }
 
             }
         }
+
+//        for (Order unOrder : unallocatedOrders) {
+//            boolean success = attemptReallocateFor(unOrder);
+//            if (success) System.out.println("Successfully reallocated order " + unOrder.getId());
+//            else System.out.println("Failed to reallocate order " + unOrder.getId());
+//        }
+
+    }
+
+    //todo:: do zrobienia ale czasu zabrakło działa za to algorytm zachłanny który powienien w znacznej wiekszosci
+    //todo:: sytuacji znaleźć rozwiazanie -- to co niżej to własnie nie dokończone szykanie i relokowanie zapłaty
+
+    /**
+     * Próba naprawy lokalnej dla zamówienia, którego nie udało się opłacić zachłannie.
+     * Sprawdza czy można zwolnić zasoby z już przydzielonych zamówień, aby opłacić to zamówienie.
+     * @param failedOrder zamówienie, dla którego szukamy naprawy
+     * @return true jeśli naprawa się powiodła, false w przeciwnym wypadku
+     */
+    private boolean attemptReallocateFor(Order failedOrder) {
+        List<PaymentOption> possibleOptions = generatePotentialPaymentMethods(failedOrder);
+
+        if (possibleOptions.isEmpty()) return false;
+
+        //sortujemy od najlepszej tej z największym rabatem
+        Collections.sort(possibleOptions);
+
+        //dla każde opcja sprawdzamy czy w ogole jestesmy w stanie to opłacic
+        for (PaymentOption Option : possibleOptions) {
+
+        }
+        return true; //todo::
+
     }
 
 
+    /**
+     * Generujemy wszysktie potencjalne możliwości opłacenia nieopłalnego zamówienia na podstawie limitów zamówień
+     * a nie tego co już zachłannie zrobiliśmy.
+     */
+    private List<PaymentOption> generatePotentialPaymentMethods(Order order){
+        List<PaymentOption> options = new ArrayList<>();
 
+        // 1. Opcja: 100% PUNKTY
+        if (pointsMethod.getDiscount() > 0) {
+            BigDecimal pointsNeeded = order.getValue();
+            if (pointsNeeded.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal discount = calculateDiscount(order.getValue(), pointsMethod.getDiscount());
+                BigDecimal amountAfterDiscount = order.getValue().subtract(discount);
 
+                options.add(new PaymentOption(
+                        order,
+                        pointsMethod,
+                        amountAfterDiscount,
+                        Optional.empty(),
+                        BigDecimal.ZERO,
+                        discount
+                ));
+            }
+        }
 
+        // 2. Opcja: Punkty (>=10%) + Karta
+        BigDecimal minPointsAmount = calculateDiscount(order.getValue(), 10);
+        BigDecimal discountFor10Percent = calculateDiscount(order.getValue(), 10);
+        BigDecimal totalAfterDiscount = order.getValue().subtract(discountFor10Percent);
 
+        for (PaymentMethod card : cardMethods) {
+            BigDecimal cardAmount = totalAfterDiscount.subtract(minPointsAmount);
+            if (cardAmount.compareTo(BigDecimal.ZERO) > 0) {
+                options.add(new PaymentOption(
+                        order,
+                        pointsMethod,
+                        minPointsAmount,
+                        Optional.of(card),
+                        cardAmount,
+                        discountFor10Percent
+                ));
+            }
+        }
 
+        // 3. Opcja: 100% Karta z promocją
+        for (PaymentMethod card : cardMethods) {
+            if (order.getPromotions().contains(card.getId()) && card.getDiscount() > 0) {
+                BigDecimal discount = calculateDiscount(order.getValue(), card.getDiscount());
+                BigDecimal amountAfterDiscount = order.getValue().subtract(discount);
 
+                options.add(new PaymentOption(
+                        order,
+                        card,
+                        amountAfterDiscount,
+                        Optional.empty(),
+                        BigDecimal.ZERO,
+                        discount
+                ));
+            }
+        }
 
+        // 4. Opcja: 100% Karta bez promocji
+        for (PaymentMethod card : cardMethods) {
+            if (!order.getPromotions().contains(card.getId()) || card.getDiscount() == 0) {
+                options.add(new PaymentOption(
+                        order,
+                        card,
+                        order.getValue(),
+                        Optional.empty(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO
+                ));
+            }
+        }
 
+        return options;
+    }
 
-
-
-
+    private boolean tryReallocateResources(PaymentOption option) {
+        return false; //todo:
+    }
 
 
 

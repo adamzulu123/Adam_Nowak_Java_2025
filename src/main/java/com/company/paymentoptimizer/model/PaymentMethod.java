@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.util.List;
 public class PaymentMethod {
     private String id;
     private int discount;
+    @Getter
     private BigDecimal limit;
     private BigDecimal used = BigDecimal.ZERO;
 
@@ -47,8 +49,10 @@ public class PaymentMethod {
         return getAvailable().compareTo(amount) >= 0;
     }
 
-
-
+    //jak zachłanny popełni bład to zawsze możemy wycofać opłatne zamówienia za pomoca danej metody
+    public void rollbackUsed(BigDecimal amount) {
+        this.used = this.used.subtract(amount);
+    }
 
 
 

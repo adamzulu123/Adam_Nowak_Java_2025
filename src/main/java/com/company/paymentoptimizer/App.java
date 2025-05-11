@@ -18,7 +18,7 @@ import java.util.Optional;
 public class App {
     public static void main(String[] args) {
         if (args.length < 2) {
-            System.err.println("Usage: java -jar paymentoptimizer.jar <input> <output>");
+            System.err.println("Usage: java -jar <paymentoptimizer.jar> <input> <output>");
             System.exit(1);
         }
 
@@ -32,11 +32,10 @@ public class App {
 
             Optimizer optimizer = new Optimizer(orders, paymentMethods);
             List<Allocation> allocations = optimizer.optimize();
-            for (Allocation allocation : allocations) {
-                System.out.println(allocation);
-            }
-
-
+//            for (Allocation allocation : allocations) {
+//                System.out.println(allocation);
+//            }
+            System.out.println(optimizer.generateReport(allocations));
 
         } catch (IOException e){
             System.err.println(e.getMessage());
