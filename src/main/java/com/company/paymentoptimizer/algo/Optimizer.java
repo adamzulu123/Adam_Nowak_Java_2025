@@ -265,7 +265,7 @@ public class Optimizer {
                     allocations.add(bestOption.toAllocation());
                     allocatedOrderIds.add(order.getId());
                 }else{
-                    System.out.println(order.getId());
+                    System.out.println("Unallocated order" + order.getId());
                     //unallocatedOrders.add(order); //todo::
                 }
 
